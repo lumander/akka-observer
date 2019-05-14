@@ -48,7 +48,7 @@
             case DirectoryChange.Modification =>
               dispatch(logger, publisher, path.toString(), matchingRegex)
             case DirectoryChange.Deletion =>
-              logger ! FileDeleted(path)
+              logger ! FileDeleted(path.toString())
           }
         }
 
