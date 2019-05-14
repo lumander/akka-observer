@@ -19,7 +19,8 @@ def startWatchers(watchers: Array[String]): Unit = {
 
   val actors: Array[ActorRef] = watchers.map{ line => system.actorOf(Watcher.props(line), line)}
 
-  actors.map{ actor.asInstanceOf[ActorRef] ! Watch }
+  actors.foreach( actor => actor ! Watch )
+
 
 }
 
