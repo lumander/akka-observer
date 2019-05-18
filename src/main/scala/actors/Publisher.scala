@@ -1,59 +1,62 @@
 package actors
 
 import java.nio.file.Paths._
-import java.nio.file.{FileSystems, Paths}
 
-import actors.Publisher.Publish
-import akka.NotUsed
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.kafka.ProducerSettings
 import akka.kafka.scaladsl.Producer
-import akka.stream.{ActorMaterializer, IOResult}
+import akka.stream.ActorMaterializer
 import akka.stream.alpakka.csv.scaladsl.{CsvParsing, CsvToMap}
-import akka.stream.alpakka.file.scaladsl.FileTailSource
-import akka.stream.scaladsl.{FileIO, Source}
+import akka.stream.scaladsl.FileIO
 import akka.util.ByteString
 import com.typesafe.config._
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
 import spray.json.{DefaultJsonProtocol, JsValue, JsonWriter}
 
-import scala.concurrent.Future
-import scala.concurrent.duration._
-
 
 object Publisher  {
   def props: Props = Props[Publisher]
-  case object Publish
 }
 
-class Publisher extends Actor with ActorLogging with DefaultJsonProtocol with ActorMaterializer {
+class Publisher(logger: ActorRef) extends Actor
+  with DefaultJsonProtocol
+  with ActorMaterializer {
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
+  import Logger._
 
 
   def receive = {
-    case Publish => {
-      log.info("Start publishing to " + topic )
-        publish(topic) }
+
+
+    case Publish(name,fileName) => {
+      logger ! Publish(name,fileName)
+        publish(name,fileName)
+    }
 
   }
 
-  def publish(topic: String)(implicit materializer: ActorMaterializer): Unit = {
+  def publish(name: String,path: String)(implicit materializer: ActorMaterializer): Unit = {
 
 
-    val config = ConfigFactory.load().getConfig("akka.kafka.producer")
-    val producerSettings = ProducerSettings(config, new StringSerializer, new StringSerializer)
-        .withBootstrapServers("localhost:9092")
+    val csvDelimiter = ConfigFactory.load().getConfig(name).getString("csv.delimiter")
+    val csvQuoteChar = ConfigFactory.load().getConfig(name).getString("csv-quote-char")
+    val csvEscapeChar = ConfigFactory.load().getConfig(name).getString("csv-escape-char")
 
+    val producerConfig = ConfigFactory.load().getConfig(name).getConfig("akka.kafka.producer")
+    val bootstrapServers = ConfigFactory.load().getConfig(name).getString("bootstrap-servers")
+    val topic = ConfigFactory.load().getConfig(name).getString("topic")
+    val producerSettings = ProducerSettings(producerConfig, new StringSerializer, new StringSerializer)
+        .withBootstrapServers(bootstrapServers)
 
 
     FileIO
-      .fromPath(get("/home/alessandro/observer/observed_20190878.csv"))
-      .via(CsvParsing.lineScanner())
-      .via(CsvToMap.toMap())
-      .map(cleanseCsvData)                                         //: Map[String, String]     (6)
-      .map(toJson)                                                 //: JsValue                 (7)
+      .fromPath(get(path))
+      .via(CsvParsing.lineScanner(csvDelimiter,csvQuoteChar,csvEscapeChar))
+      .via(CsvToMap.toMap()) // TODO PARAMETRIZZARE LA PRESENZA DELL'HEADER
+      .map(cleanseCsvData)
+      .map(toJson)
       .map(_.compactPrint)
       .map(value => new ProducerRecord[String, String](topic, value))
       .runWith(Producer.plainSink(producerSettings))

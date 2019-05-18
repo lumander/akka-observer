@@ -1,26 +1,25 @@
 import AkkaQuickstart.system
+import actors.Logger._
 import actors.Watcher
-import akka.actor
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ActorLogging, ActorRef, ActorSystem}
+import com.typesafe.config.ConfigFactory
 
 
 object AkkaQuickstart extends App {
 
   implicit val system: ActorSystem = ActorSystem("akka-file-ingester")
 
-  val watchers = Array("barclay","voucher") //TODO INSERIRE LETTURA DA FILE DI CONFIGURAZIONE
-  startWatchers(watchers)
+  startWatchers()
 
 }
 
-def startWatchers(watchers: Array[String]): Unit = {
+def startWatchers(): Unit = {
 
-  import Watcher._
+  val watcherList = ConfigFactory.load().getString("active-watchers").split(",")
 
-  val actors: Array[ActorRef] = watchers.map{ line => system.actorOf(Watcher.props(line), line)}
+  val actors: Array[ActorRef] = watcherList.map{ line => system.actorOf(Watcher.props(line), line)}
 
   actors.foreach( actor => actor ! Watch )
-
 
 }
 

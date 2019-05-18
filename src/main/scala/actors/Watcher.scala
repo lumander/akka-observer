@@ -6,6 +6,7 @@
   import akka.stream.ActorMaterializer
   import akka.stream.alpakka.file.DirectoryChange
   import akka.stream.alpakka.file.scaladsl.DirectoryChangesSource
+  import com.typesafe.config.ConfigFactory
 
   import scala.concurrent.duration._
 
@@ -14,19 +15,15 @@
     def props(name: String)(implicit system: ActorSystem): Props =
       Props(new Watcher(name))
 
-    case object Watch
 
   }
 
   class Watcher(name: String)(implicit system: ActorSystem) extends Actor {
 
     import Logger._
-    import Publisher._
-    import Watcher._
 
-    val directory = "/home/alessandro/observer" // TODO leggere da file di conf dato il nome del watcher
-    val matchingRegex = "observed_[0-9]{8}.csv" //TODO leggere da file di conf dato il nome del watcher
-    val topic = "akka-publisher-test" //TODO leggere da file di conf dato il nome del watcher
+    val directory = ConfigFactory.load().getConfig(name).getString("directory")
+    val matchingRegex = ConfigFactory.load().getConfig(name).getString("matching-regex")
 
     val logger = context.actorOf(props = Props[Logger], name + "-logger")
     val publisher = context.actorOf(props = Props[Publisher], name + "-publisher")
@@ -58,9 +55,10 @@
 
     def dispatch(logger: ActorRef, publisher: ActorRef, path: String, matchingRegex: String): Unit = {
 
-      if (path.split("/").last.matches(matchingRegex)) {
+      val fileName = path.split("/").last
+      if (fileName.matches(matchingRegex)) {
         logger ! NewFileArrived(path)
-        publisher ! Publish }
+        publisher ! Publish(name,path) }
       else {
         logger ! NoMatchFound(path) //TODO VOGLIO ESSERE INFORMATO DI EVENTUALI ARRIVI CHE NON CORRISPONDONO ALLA REGEX
       }
