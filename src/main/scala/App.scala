@@ -1,7 +1,8 @@
 import AkkaQuickstart.system
-import actors.Logger._
+import actors.Logger.Watch
 import actors.Watcher
-import akka.actor.{ActorLogging, ActorRef, ActorSystem}
+import akka.actor
+import akka.actor.{ActorRef, ActorSystem}
 import com.typesafe.config.ConfigFactory
 
 
@@ -9,17 +10,20 @@ object AkkaQuickstart extends App {
 
   implicit val system: ActorSystem = ActorSystem("akka-file-ingester")
 
-  startWatchers()
+
+    startWatchers()
+
+
+
+
+def startWatchers()(implicit system: ActorSystem): Unit = {
+
+  val watchers = ConfigFactory.load().getString("active-watchers").split(",")
+
+  val actors = watchers.map{ name => system.actorOf(Watcher.props(name), name + "-watcher") }
+
+  actors.foreach{ actor => actor ! Watch  }
 
 }
 
-def startWatchers(): Unit = {
-
-  val watcherList = ConfigFactory.load().getString("active-watchers").split(",")
-
-  val actors: Array[ActorRef] = watcherList.map{ line => system.actorOf(Watcher.props(line), line)}
-
-  actors.foreach( actor => actor ! Watch )
-
 }
-

@@ -20,13 +20,15 @@
 
   class Watcher(name: String)(implicit system: ActorSystem) extends Actor {
 
+    //TODO MI PIACEREBBE AVERE UN FILE DI LOG PER OGNI FILE CSV
+
     import Logger._
 
     val directory = ConfigFactory.load().getConfig(name).getString("directory")
     val matchingRegex = ConfigFactory.load().getConfig(name).getString("matching-regex")
 
     val logger = context.actorOf(props = Props[Logger], name + "-logger")
-    val publisher = context.actorOf(props = Props[Publisher], name + "-publisher")
+    val publisher = context.actorOf(Publisher.props(logger), name + "-publisher")
 
 
     implicit val materializer: ActorMaterializer = ActorMaterializer()

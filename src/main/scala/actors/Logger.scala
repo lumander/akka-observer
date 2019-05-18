@@ -20,21 +20,21 @@ class Logger extends Actor
   import Logger._
 //TODO RIsolvere failed to load class org.slf4j.impl.StaticLoggerBinder
   def receive = {
-    case _ => log.info("Unexpected message {}", _ )
     case NewFileArrived(path) =>
       log.info("Message from " + sender() )
       log.info("New file arrived:" + path)
     case NoMatchFound(noMatchFound) =>
       log.info("Message from " + sender() )
       log.info("No match found " + noMatchFound)
-    case NewFileCompleted(newFileCompleted) =>
+    case NewFileCompleted(path) =>
       log.info("Message from " + sender() )
-      log.info("New file completed " + newFileCompleted)
+      log.info("New file completed " + path)
     case FileDeleted(fileDeleted) =>
       log.info("Message from " + sender() )
       log.info("File deleted " + fileDeleted)
     case Publish(name,fileName) =>
       log.info("Message from " + sender() )
-      log.info("Start publishing for " + name + "- New file arrived: " + fileName)
+      log.info("Start processing for " + name + "- New file arrived: " + fileName)
+    case _ => log.info("Unexpected message {}" )
   }
 }

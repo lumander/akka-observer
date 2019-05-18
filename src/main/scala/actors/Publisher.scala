@@ -2,7 +2,7 @@ package actors
 
 import java.nio.file.Paths._
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.kafka.ProducerSettings
 import akka.kafka.scaladsl.Producer
 import akka.stream.ActorMaterializer
@@ -16,12 +16,11 @@ import spray.json.{DefaultJsonProtocol, JsValue, JsonWriter}
 
 
 object Publisher  {
-  def props: Props = Props[Publisher]
+  def props(logger: ActorRef)(implicit system: ActorSystem): Props = Props(new Publisher(logger))
 }
 
 class Publisher(logger: ActorRef) extends Actor
-  with DefaultJsonProtocol
-  with ActorMaterializer {
+  with DefaultJsonProtocol{
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   import Logger._
@@ -40,7 +39,7 @@ class Publisher(logger: ActorRef) extends Actor
   def publish(name: String,path: String)(implicit materializer: ActorMaterializer): Unit = {
 
 
-    val csvDelimiter = ConfigFactory.load().getConfig(name).getString("csv.delimiter")
+    val csvDelimiter = ConfigFactory.load().getConfig(name).getString("csv-delimiter")
     val csvQuoteChar = ConfigFactory.load().getConfig(name).getString("csv-quote-char")
     val csvEscapeChar = ConfigFactory.load().getConfig(name).getString("csv-escape-char")
 
@@ -53,13 +52,15 @@ class Publisher(logger: ActorRef) extends Actor
 
     FileIO
       .fromPath(get(path))
-      .via(CsvParsing.lineScanner(csvDelimiter,csvQuoteChar,csvEscapeChar))
+      .via(CsvParsing.lineScanner())//TODO CAPIRE COME PARAMETRIZZARE I PARAMETRI DEL LINE SCANNER (BYTEs)
       .via(CsvToMap.toMap()) // TODO PARAMETRIZZARE LA PRESENZA DELL'HEADER
       .map(cleanseCsvData)
       .map(toJson)
       .map(_.compactPrint)
       .map(value => new ProducerRecord[String, String](topic, value))
       .runWith(Producer.plainSink(producerSettings))
+
+    logger ! NewFileCompleted(path)
 
   }
 
