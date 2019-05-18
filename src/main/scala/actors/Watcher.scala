@@ -62,7 +62,7 @@
         logger ! NewFileArrived(path)
         publisher ! Publish }
       else {
-        logger ! NoMatchFound(path)
+        logger ! NoMatchFound(path) //TODO VOGLIO ESSERE INFORMATO DI EVENTUALI ARRIVI CHE NON CORRISPONDONO ALLA REGEX
       }
 
     }

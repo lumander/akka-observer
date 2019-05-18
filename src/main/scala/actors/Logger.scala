@@ -7,7 +7,7 @@ object Logger {
   final case class NewFileArrived(newFileArrived: String)
   final case class NoMatchFound(noMatchFound: String)
   final case class NewFileCompleted(newFileCompleted: String)
-  final case class FileDeleted(newFileCompleted: String)
+  final case class FileDeleted(fileDeleted: String)
   case object UnexpectedMessage
 
 }
@@ -23,5 +23,7 @@ class Logger extends Actor with ActorLogging {
       log.info("No match found (from " + sender() + "): " + noMatchFound)
     case NewFileCompleted(newFileCompleted) =>
       log.info("New file completed (from " + sender() + "): " + newFileCompleted)
+    case FileDeleted(fileDeleted) =>
+      log.info("File completed (from " + sender() + "): " + fileDeleted)
   }
 }
