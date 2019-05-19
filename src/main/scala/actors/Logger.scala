@@ -11,6 +11,8 @@ object Logger {
   case class NewFileCompleted(newFileCompleted: String)
   case class FileDeleted(fileDeleted: String)
   case class Publish(name: String,fileName: String)
+  case class Counter(count: Int)
+  case class MetricObject(name: String, counter: Int)
   case object UnexpectedMessage
 
 }

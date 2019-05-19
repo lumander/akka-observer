@@ -28,7 +28,7 @@
     val matchingRegex = ConfigFactory.load().getConfig(name).getString("matching-regex")
 
     val logger = context.actorOf(props = Props[Logger], name + "-logger")
-    val publisher = context.actorOf(Publisher.props(logger), name + "-publisher")
+    val publisher = context.actorOf(Publisher.props(logger,name), name + "-publisher")
 
 
     implicit val materializer: ActorMaterializer = ActorMaterializer()
@@ -50,6 +50,8 @@
               logger ! FileDeleted(path.toString())
           }
         }
+
+      //case MetricObject(name,count) => user() ! MetricObject(name,count)
 
       case _ => logger ! UnexpectedMessage
 
