@@ -1,0 +1,2 @@
+addSbtPlugin("com.tapad" % "sbt-docker-compose" % "1.0.34")
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.9")

@@ -1,9 +1,10 @@
 package actors
 
 import java.nio.file.Paths._
+import java.nio.file.{Files, Paths, StandardCopyOption}
 
-import actors.Logger.{Counter, NewFileCompleted, Publish}
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import actors.Publisher.Publish
+import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, Props}
 import akka.kafka.ProducerSettings
 import akka.kafka.scaladsl.Producer
 import akka.stream.alpakka.csv.scaladsl.{CsvParsing, CsvToMap}
@@ -12,7 +13,6 @@ import akka.stream.{ActorMaterializer, ClosedShape}
 import akka.util.ByteString
 import com.typesafe.config._
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.Metric
 import org.apache.kafka.common.serialization.StringSerializer
 import spray.json.{DefaultJsonProtocol, JsValue, JsonWriter}
 
@@ -20,12 +20,17 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure => ScalaFailure, Success => ScalaSuccess}
 
 
-object Publisher  {
-  def props(logger: ActorRef,name: String)(implicit system: ActorSystem): Props = Props(new Publisher(logger,name))
+object Publisher {
+
+  def props(logger: ActorRef, name: String): Props =
+    Props(new Publisher(logger, name))
+
+  case class Publish(name: String, fileName: String)
+
 }
 
-class Publisher(logger: ActorRef,name: String)(implicit system: ActorSystem) extends Actor
-  with DefaultJsonProtocol{
+class Publisher(logger: ActorRef, name: String) extends Actor
+  with DefaultJsonProtocol {
 
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContext = context.dispatcher
@@ -36,14 +41,18 @@ class Publisher(logger: ActorRef,name: String)(implicit system: ActorSystem) ext
   def receive = {
 
 
-    case Publish(name,fileName) => {
-      logger ! Publish(name,fileName)
-        publish(name,fileName)
+    case Publish(name, fileName) => {
+      publish(name, fileName)
+
     }
+
+    case _ => logger ! UnexpectedMessage
 
   }
 
-  def publish(name: String,path: String)(implicit materializer: ActorMaterializer): Unit = {
+  def publish(name: String, path: String)(implicit materializer: ActorMaterializer): Unit = {
+
+    logger ! StartProcessing(name, path)
 
     val csvDelimiter = ConfigFactory.load().getConfig(name).getString("csv-delimiter")
     val csvQuoteChar = ConfigFactory.load().getConfig(name).getString("csv-quote-char")
@@ -53,53 +62,53 @@ class Publisher(logger: ActorRef,name: String)(implicit system: ActorSystem) ext
     val bootstrapServers = ConfigFactory.load().getConfig(name).getString("bootstrap-servers")
     val topic = ConfigFactory.load().getConfig(name).getString("topic")
     val producerSettings = ProducerSettings(producerConfig, new StringSerializer, new StringSerializer)
-        .withBootstrapServers(bootstrapServers)
+      .withBootstrapServers(bootstrapServers)
 
 
     val kafkaSink = Producer.plainSink(producerSettings)
 
-    val counterSink = Sink.fold[Int, Map[String, ByteString]](0)((counter, _) => counter + 1)
+    val counterSink = Sink.fold[Int, String](0)((counter, _) => counter + 1)
 
-    val g = RunnableGraph.fromGraph(GraphDSL.create(kafkaSink, counterSink)((_, _)) { implicit builder =>
+    val fanOutGraph = RunnableGraph.fromGraph(GraphDSL.create(kafkaSink, counterSink)((_, _)) { implicit builder =>
       (s1, s2) =>
         import GraphDSL.Implicits._
 
-        val broadcast = builder.add(Broadcast[Map[String, ByteString]](2))
+        val broadcast = builder.add(Broadcast[String](2))
 
         val source =
           FileIO
             .fromPath(get(path))
-            .via(CsvParsing.lineScanner())//TODO CAPIRE COME PARAMETRIZZARE I PARAMETRI DEL LINE SCANNER (BYTEs)
+            .via(CsvParsing.lineScanner()) //TODO CAPIRE COME PARAMETRIZZARE I PARAMETRI DEL LINE SCANNER (BYTEs)
             .via(CsvToMap.toMap()) // TODO PARAMETRIZZARE LA PRESENZA DELL'HEADER
+            .map(cleanseCsvData)
+            .map(toJson)
+            .map(_.compactPrint)
 
 
         source ~> broadcast.in
 
         broadcast.out(0)
-          .map(cleanseCsvData)
-          .map(toJson)
-          .map(_.compactPrint)
-          .map(value => new ProducerRecord[String, String](topic, value))~> s1
+          .map(value => new ProducerRecord[String, String](topic, value)) ~> s1
 
         broadcast.out(1) ~> s2
 
         ClosedShape
-    }) // RunnableGraph[(Future[Done], Future[Int])]
+    })
 
-    val (kafkaFuture, counterFuture) = g.run()
+    val (kafkaFuture, counterFuture) = fanOutGraph.run()
 
-    kafkaFuture onComplete {
+    kafkaFuture onComplete { // forse è un errore mettere un onComplete qui
       case ScalaSuccess(count) => {
-        logger ! NewFileCompleted(path)
+        logger ! FileProcessed(path)
+        renameFile(path: String)
       }
-      case ScalaFailure(_) =>
+      case ScalaFailure(_) => logger ! KafkaConnectionException
     }
 
     counterFuture onComplete {
       case ScalaSuccess(count) => {
-        logger ! NewFileCompleted(path)
         println(s"Number of elements: $count")
-        sender() ! MetricObject(path,count)
+        //pushMetrics()
       }
       case ScalaFailure(_) =>
     }
@@ -115,5 +124,20 @@ class Publisher(logger: ActorRef,name: String)(implicit system: ActorSystem) ext
   def toJson(map: Map[String, String])(
     implicit jsWriter: JsonWriter[Map[String, String]]): JsValue = jsWriter.write(map)
 
+  def renameFile(sourceFilename: String): Unit = {
+
+    val path = Files.move(
+      Paths.get(sourceFilename),
+      Paths.get(sourceFilename + ".COMPLETED"),
+      StandardCopyOption.REPLACE_EXISTING
+    )
+
+    if (path != null) {
+      logger ! FileRenamed(path.toString)
+    } else {
+      logger ! ExceptionWhileRenaming(path.toString)
+    }
+
+  }
 
 }

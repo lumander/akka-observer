@@ -1,20 +1,21 @@
 package actors
 
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import actors.Watcher.Watch
+import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.stream.ActorMaterializer
-import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-import scala.io.StdIn
+import com.typesafe.config.ConfigFactory
 
+import scala.io.StdIn
 import scala.io.StdIn
 
 object Exporter {
-  def props()(implicit context: ActorSystem): Props = Props(new Exporter())
+  def props()(implicit system: ActorSystem): Props = Props(new Exporter())
 
 }
 
@@ -25,9 +26,11 @@ class Exporter()(implicit system: ActorSystem) extends Actor{
   // needed for the future flatMap/onComplete in the end
   implicit val executionContext = system.dispatcher
 
+
   def receive = {
 
     case Counter(count) => expose(count)
+    case "test" => startWatchers()
 
   }
 
@@ -45,7 +48,17 @@ class Exporter()(implicit system: ActorSystem) extends Actor{
     StdIn.readLine() // let it run until user presses return
     bindingFuture
       .flatMap(_.unbind()) // trigger unbinding from the port
-      //.onComplete(_ => system.terminate()) // and shutdown when done
+      .onComplete(_ => system.terminate()) // and shutdown when done
+  }
+
+  def startWatchers(): Unit = {
+
+    val watchers = ConfigFactory.load().getString("active-watchers").split(",")
+
+    val actors = watchers.map{ name => context.actorOf(Watcher.props(name), name + "-watcher") }
+
+    actors.foreach{ actor => actor ! Watch  }
+
   }
 
 }
