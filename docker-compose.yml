@@ -54,7 +54,7 @@ services:
     environment:
       SANDBOX: /akka-observer/logs
     volumes:
-      - /home/alessandro/observer/data:/akka-observer/data
-      - /home/alessandro/observer/logs:/akka-observer/logs
+      - /home/observer/data:/akka-observer/data
+      - /home/observer/logs:/akka-observer/logs
     
 
