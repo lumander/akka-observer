@@ -1,6 +1,6 @@
 package actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 import org.slf4j.LoggerFactory
 
 object CustomLogger {

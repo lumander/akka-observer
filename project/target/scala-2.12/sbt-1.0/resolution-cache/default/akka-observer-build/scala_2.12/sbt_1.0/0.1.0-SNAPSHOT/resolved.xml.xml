@@ -4,7 +4,7 @@
 		module="akka-observer-build"
 		revision="0.1.0-SNAPSHOT"
 		status="integration"
-		publication="20190729144136"
+		publication="20190908182158"
 		e:sbtVersion="1.0" e:scalaVersion="2.12"
 	>
 		<description>
