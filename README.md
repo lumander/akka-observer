@@ -1,4 +1,4 @@
-## akka-observer
+# akka-observer
 
 This is an akka-based file watcher.
 An actor is watching on a folder. When a new file arrives, it triggers another actor which converts its content in JSON format
@@ -15,3 +15,10 @@ If you want to run it locally, open a terminal and run
 ```
 ./start_observer.sh
 ```
+
+## TODO
+
+Adding tests
+Adding a simple web-server interface
+Adding metrics ( both for JVM and for the application )
+Adding architecture design
