@@ -19,6 +19,9 @@ If you want to run it locally, open a terminal and run
 ## TODO
 
 Adding tests
+
 Adding a simple web-server interface
+
 Adding metrics ( both for JVM and for the application )
+
 Adding architecture design
