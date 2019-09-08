@@ -1,9 +1,10 @@
 package actors
 
 import java.nio.file._
+import java.text.SimpleDateFormat
 
-import actors.Logger._
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import actors.CustomLogger._
+import akka.actor.{Actor, ActorRef, Props}
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.file.DirectoryChange
 import akka.stream.alpakka.file.scaladsl.DirectoryChangesSource
@@ -23,14 +24,12 @@ object Watcher {
 
 class Watcher(name: String) extends Actor {
 
-  //TODO MI PIACEREBBE AVERE UN FILE DI LOG PER OGNI FILE CSV
-
   import Watcher._
 
   val directory: String = ConfigFactory.load().getConfig(name).getString("directory")
   val matchingRegex: String = ConfigFactory.load().getConfig(name).getString("matching-regex")
 
-  val logger: ActorRef = context.actorOf(props = Props[Logger], name + "-logger")
+  val logger: ActorRef = context.actorOf(CustomLogger.props(name), name + "-logger")
   val publisher: ActorRef = context.actorOf(Publisher.props(logger, name), name + "-publisher")
 
 
@@ -43,7 +42,7 @@ class Watcher(name: String) extends Actor {
       val fs = FileSystems.getDefault
       val changes = DirectoryChangesSource(fs.getPath(directory), pollInterval = 1.second, maxBufferSize = 1000)
       changes.runForeach {
-        case (path, change) => handleChanges(path.toString, change)
+        case (path, change) => handleChanges(fs,path.toString, change)
       }
 
     //case MetricObject(name,count) => user() ! MetricObject(name,count)
@@ -53,21 +52,29 @@ class Watcher(name: String) extends Actor {
   }
 
 
-  def handleChanges(path: String, change: DirectoryChange): Unit = {
+  def handleChanges(fs: FileSystem, path: String, change: DirectoryChange): Unit = {
 
-    import Logger._
+    import CustomLogger._
     import Publisher._
 
     change match {
 
       case DirectoryChange.Creation =>
-        logger ! FileCreated(path)
+         logger ! FileCreated(path)
+
 
       case DirectoryChange.Modification => {
         val fileName = path.split("/").last
         if (fileName.matches(matchingRegex)) {
-          logger ! NewFileArrived(path)
-          publisher ! Publish(name, path)
+          if (checkDuplicates(fs,path)){
+            val date = getLastModificationTime(fs,path)
+            logger ! FileAlreadyExists(path+".COMPLETED",date)
+          }
+          else{
+            logger ! NewFileArrived(path)
+            publisher ! Publish(name, path)
+          }
+
         }
         else {
           logger ! DifferentMatch(path)
@@ -77,6 +84,19 @@ class Watcher(name: String) extends Actor {
       case DirectoryChange.Deletion =>
         logger ! FileDeleted(path)
     }
+
+  }
+
+  def checkDuplicates(fs: FileSystem, path: String): Boolean = {
+
+    Files.exists(fs.getPath(s"$path.COMPLETED"))
+
+  }
+
+  def getLastModificationTime(fs: FileSystem, path: String): String = {
+
+    val df = new SimpleDateFormat("yyyy-MM-dd")
+    df.format(Files.getLastModifiedTime(fs.getPath(s"$path.COMPLETED")).toMillis)
 
   }
 

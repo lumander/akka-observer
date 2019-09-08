@@ -1,0 +1,36 @@
+<configuration>
+
+    <appender name="BAR-AT-FILE" class="ch.qos.logback.core.FileAppender">
+        <file>barclaycard.payment-report.at.log</file>
+
+        <encoder>
+            <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="BAR-ES-FILE" class="ch.qos.logback.core.FileAppender">
+        <file>barclaycard.payment-report.es.log</file>
+
+        <encoder>
+            <pattern>%date %level [%thread] %logger{10} [%file:%line] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="barclaycard.payment-report.at" level="DEBUG">
+        <appender-ref ref="BAR-AT-FILE" />
+    </logger>
+
+    <logger name="barclaycard.payment-report.es" level="DEBUG">
+        <appender-ref ref="BAR-ES-FILE" />
+    </logger>
+
+    <root level="debug">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>

@@ -1,19 +1,23 @@
+import actors.Watcher
 import actors.Watcher.Watch
-import actors.{Exporter, Watcher}
-import akka.actor.{ActorContext, ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 
 
-object AkkaQuickstart extends App {
+object AkkaQuickstart {
 
-  implicit val system: ActorSystem = ActorSystem("akka-file-ingester")
+  //TODO TUTTI I TO DO DIVENTANO PUNTI DI UNA PRESENTAZIONE
 
-  val exporter = system.actorOf(Exporter.props(), "exporter")
+  def main(args: Array[String]): Unit = {
 
-exporter ! "test"
+    implicit val system: ActorSystem = ActorSystem("akka-file-ingester")
 
+    val watchers = ConfigFactory.load().getString("active-watchers").split(",")
 
+    val actors = watchers.map{ name => system.actorOf(Watcher.props(name), name + "-watcher") }
 
+    actors.foreach{ actor => actor ! Watch  }
 
+  }
 
 }

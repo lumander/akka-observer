@@ -4,7 +4,7 @@ import java.nio.file.Paths._
 import java.nio.file.{Files, Paths, StandardCopyOption}
 
 import actors.Publisher.Publish
-import akka.actor.{Actor, ActorContext, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.kafka.ProducerSettings
 import akka.kafka.scaladsl.Producer
 import akka.stream.alpakka.csv.scaladsl.{CsvParsing, CsvToMap}
@@ -35,7 +35,7 @@ class Publisher(logger: ActorRef, name: String) extends Actor
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContext = context.dispatcher
 
-  import Logger._
+  import CustomLogger._
 
 
   def receive = {
@@ -74,7 +74,7 @@ class Publisher(logger: ActorRef, name: String) extends Actor
         import GraphDSL.Implicits._
 
         val broadcast = builder.add(Broadcast[String](2))
-
+//TODO disaccoppiare la cartella di arrivo da quella di processing: FONDAMENTALE PER FILE GROSSI
         val source =
           FileIO
             .fromPath(get(path))
@@ -121,15 +121,17 @@ class Publisher(logger: ActorRef, name: String) extends Actor
       .filterNot { case (key, _) => key.isEmpty }
       .mapValues(_.utf8String)
 
+
+
   def toJson(map: Map[String, String])(
     implicit jsWriter: JsonWriter[Map[String, String]]): JsValue = jsWriter.write(map)
 
   def renameFile(sourceFilename: String): Unit = {
-
+//TODO Rendere il job stateful: un file già processato non deve essere riprocessato
     val path = Files.move(
       Paths.get(sourceFilename),
       Paths.get(sourceFilename + ".COMPLETED"),
-      StandardCopyOption.REPLACE_EXISTING
+      StandardCopyOption.REPLACE_EXISTING //TODO oppure atomic moving
     )
 
     if (path != null) {
@@ -139,5 +141,6 @@ class Publisher(logger: ActorRef, name: String) extends Actor
     }
 
   }
+
 
 }
